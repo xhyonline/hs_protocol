@@ -24,8 +24,8 @@ const (
 // DataFragment 全局协议
 type DataFragment struct {
 	GlobalSeq     uint32 // 全局序列号
-	SubSeq        uint32 // 子序列号
-	IsEnd         bool   // 是否结尾
+	subSeq        uint32 // 子序列号
+	isEnd         bool   // 是否结尾
 	Control       uint16 // 控制报文
 	PayloadLength uint32
 	Payload       []byte
@@ -33,7 +33,7 @@ type DataFragment struct {
 
 // Encode 协议序列化
 func (s *DataFragment) Encode() []byte {
-	return gbinary.Encode(s.GlobalSeq, s.SubSeq, s.IsEnd, s.Control, s.PayloadLength, s.Payload)
+	return gbinary.Encode(s.GlobalSeq, s.subSeq, s.isEnd, s.Control, s.PayloadLength, s.Payload)
 }
 
 // Reader 协议读取器。当 callback 返回 false 则退出读取
@@ -48,13 +48,13 @@ func Reader(conn net.Conn, timeout time.Duration, callback func(fragment *DataFr
 		}
 		ins := &DataFragment{
 			GlobalSeq:     0,
-			SubSeq:        0,
-			IsEnd:         false,
+			subSeq:        0,
+			isEnd:         false,
 			Control:       0,
 			PayloadLength: 0,
 			Payload:       nil,
 		}
-		if err := gbinary.Decode(header, &ins.GlobalSeq, &ins.SubSeq, &ins.IsEnd,
+		if err := gbinary.Decode(header, &ins.GlobalSeq, &ins.subSeq, &ins.isEnd,
 			&ins.Control, &ins.PayloadLength); err != nil {
 			return err
 		}
@@ -88,8 +88,8 @@ func SendMsg(conn net.Conn, globalSeq uint32, controlFlag uint16, payload []byte
 		}
 		data := &DataFragment{
 			GlobalSeq:     globalSeq,
-			SubSeq:        subSeq,
-			IsEnd:         isEnd,
+			subSeq:        subSeq,
+			isEnd:         isEnd,
 			Control:       controlFlag,
 			PayloadLength: uint32(len(payloadFrag)),
 			Payload:       payloadFrag,
@@ -117,27 +117,27 @@ func SendMsgWithRelay(conn net.Conn, globalSeq uint32,
 			return true
 		}
 		fragmentArray = append(fragmentArray, fragment)
-		if fragment.IsEnd {
+		if fragment.isEnd {
 			endSubSeq = true
 		}
 		if !endSubSeq {
 			return true
 		}
 		sort.SliceStable(fragmentArray, func(i, j int) bool {
-			return fragmentArray[i].SubSeq < fragmentArray[j].SubSeq
+			return fragmentArray[i].subSeq < fragmentArray[j].subSeq
 		})
 		// 判断数据包是否顺序
 		var prev uint32 = 0
 		for _, v := range fragmentArray {
 			if prev == 0 {
-				prev = v.SubSeq
+				prev = v.subSeq
 				continue
 			}
 			// 非连续,继续读。还有数据
-			if v.SubSeq != prev+1 {
+			if v.subSeq != prev+1 {
 				return true
 			}
-			prev = v.SubSeq
+			prev = v.subSeq
 		}
 		return false
 	}); err != nil {
@@ -147,8 +147,8 @@ func SendMsgWithRelay(conn net.Conn, globalSeq uint32,
 	// 组成一个 Fragment 返回
 	dataFragment := &DataFragment{
 		GlobalSeq:     globalSeq,
-		SubSeq:        lastFragment.SubSeq,
-		IsEnd:         true,
+		subSeq:        lastFragment.subSeq,
+		isEnd:         true,
 		Control:       lastFragment.Control,
 		PayloadLength: 0,
 		Payload:       make([]byte, 0),
