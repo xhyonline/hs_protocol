@@ -2,8 +2,10 @@ package tcp
 
 import (
 	"github.com/gogf/gf/v2/encoding/gbinary"
+	"github.com/xhyonline/hs_protocol/code"
 	"io"
 	"net"
+	"time"
 )
 
 const (
@@ -12,6 +14,10 @@ const (
 
 const (
 	BufferSize = 4096
+)
+const (
+	ReaderUnlimited = -1 // 无数次读取
+	ReaderUnTimeout = -1 // 无读取时间限制
 )
 
 // DataFragment 全局协议
@@ -29,12 +35,17 @@ func (s *DataFragment) Encode() []byte {
 	return gbinary.Encode(s.GlobalSeq, s.SubSeq, s.IsEnd, s.Control, s.PayloadLength, s.Payload)
 }
 
-// 协议读取器
-func Reader(conn net.Conn, callback func(fragment *DataFragment)) error {
+// 协议读取器,读取 N 次
+func Reader(conn net.Conn, times int, timeout time.Duration, callback func(fragment *DataFragment)) error {
+	var readCnt int
+	connReaderIns := newConnReader(conn, timeout)
 	for {
+		if times != ReaderUnlimited && readCnt > times {
+			return code.NewCodeError(code.ReadTimesBreak)
+		}
 		header := make([]byte, FixedLengthDataFragment)
 		// 读满整个头部
-		_, err := io.ReadFull(conn, header)
+		_, err := io.ReadFull(connReaderIns, header)
 		if err != nil {
 			return err
 		}
@@ -51,10 +62,11 @@ func Reader(conn net.Conn, callback func(fragment *DataFragment)) error {
 			return err
 		}
 		payloadBody := make([]byte, ins.PayloadLength)
-		if _, err = io.ReadFull(conn, payloadBody); err != nil {
+		if _, err = io.ReadFull(connReaderIns, payloadBody); err != nil {
 			return err
 		}
 		ins.Payload = payloadBody
 		callback(ins)
+		readCnt++
 	}
 }
