@@ -29,7 +29,6 @@ func (s *connReader) Read(in []byte) (n int, err error) {
 	if s.onceTimeout != ReaderUnTimeout {
 		select {
 		case <-time.After(s.onceTimeout):
-			_ = s.conn.Close()
 			return 0, code.NewCodeError(code.ReadTimeout)
 		case sig := <-s.readSig:
 			return sig.n, sig.err
